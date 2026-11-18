@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PROTOCOL // VALOR — 5v5 Tactical Shooter</title>
+    <link rel="stylesheet" href="./style.css">
+    <script src="https://unpkg.com"></script>
+</head>
+<body>
+    <!-- Full-Screen VFX Layers -->
+    <div id="flash-screen" class="screen-fx"></div>
+    <div id="smoke-vignette" class="screen-fx" style="background: rgba(30, 41, 59, 0.96);"></div>
+    <div id="damage-screen" class="screen-fx"></div>
+    <div id="ult-vignette" class="screen-fx"></div>
+    <div id="omen-phase-screen" class="screen-fx" style="background: radial-gradient(circle, rgba(30,27,75,0.45) 20%, rgba(15,10,40,0.88) 95%);"></div>
+    <div id="damage-arc" class="hidden" style="position:fixed; top:50%; left:50%; width:220px; height:220px; transform:translate(-50%,-50%); border-radius:50%; border:6px solid transparent; border-top-color:#ff4655; pointer-events:none; z-index:7;"></div>
+
+    <!-- 3D Projected HUD Layers -->
+    <div id="ally-plates-layer" style="position:fixed; inset:0; pointer-events:none; z-index:4;"></div>
+    <div id="damage-numbers-layer" style="position:fixed; inset:0; pointer-events:none; z-index:7;"></div>
+    <!-- Valorant Sniper Scope (Operator & Marshal) -->
+    <div id="sniper-scope" class="hidden">
+        <div class="scope-vignette"></div>
+        <div class="scope-ring-outer"></div>
+        <div class="scope-ring-inner"></div>
+        <div class="scope-v"></div>
+        <div class="scope-h"></div>
+        <div class="mil-tick" style="left: 44%;"></div>
+        <div class="mil-tick" style="left: 47%;"></div>
+        <div class="mil-tick" style="left: 53%;"></div>
+        <div class="mil-tick" style="left: 56%;"></div>
+        <div id="scope-accuracy-dot" class="scope-dot"></div>
+        <div class="scope-telemetry">
+            <span id="scope-zoom-label">2.5X // SINGLE ZOOM</span>
+            <span id="scope-acc-label" style="color:#ff4655;">● ACCURATE</span>
+        </div>
+    </div>
+    <!-- Dynamic Crosshair -->
+    <div id="crosshair">
+        <div id="ch-dot" class="hidden"></div>
+        <div class="ch-line" id="ch-top"></div>
+        <div class="ch-line" id="ch-bottom"></div>
+        <div class="ch-line" id="ch-left"></div>
+        <div class="ch-line" id="ch-right"></div>
+    </div>
+
+    <!-- Telemetry & Minimap Radar -->
+    <div id="telemetry-bar" style="position:fixed; top:2px; left:18px; font-size:0.68rem; font-weight:bold; letter-spacing:1px; color:#00ffcc; background:rgba(15,25,35,0.75); padding:2px 8px; z-index:6;">
+        CLIENT FPS: <span id="fps-val">60</span> &nbsp;|&nbsp; SHARD: <span id="hud-shard-ping">NA-EAST (19ms)</span>
+    </div>
+    <div id="radar-wrap">
+        <canvas id="minimap" width="160" height="176"></canvas>
+        <div id="callout-label">MID COURTYARD</div>
+    </div>
+    <!-- Full-Screen Tactical Map (Hold CapsLock) -->
+    <div id="full-map-overlay" class="overlay hidden" style="background: rgba(15, 25, 35, 0.88); z-index: 14;">
+        <h3 style="letter-spacing:3px; color:#00ffcc; margin-bottom:10px;">TACTICAL OVERVIEW // CLICK TO PING</h3>
+        <canvas id="full-map-canvas" width="420" height="462" style="border:2px solid #00ffcc; background:#141e28; cursor:crosshair;"></canvas>
+        <p class="hint" style="margin-top:10px;">RELEASE [CAPS LOCK] TO CLOSE</p>
+    </div>
+
+    <!-- Top Scoreboard & Agent Pips -->
+    <div id="top-hud">
+        <div class="agent-strip" id="ally-strip"></div>
+        <div class="score-box atk"><span id="atk-score">0</span></div>
+        <div class="timer-box">
+            <div id="phase-label">BUY PHASE</div>
+            <div id="round-timer">0:15</div>
+        </div>
+        <div class="score-box def"><span id="def-score">0</span></div>
+        <div class="agent-strip" id="enemy-strip"></div>
+    </div>
+    <!-- Killfeed & Center Banners -->
+    <div id="killfeed"></div>
+    <div id="center-banner" class="hidden"></div>
+    <div id="action-bar-wrap" class="hidden">
+        <div id="action-label">PLANTING SPIKE</div>
+        <div class="bar-bg"><div id="action-bar-fill"></div></div>
+    </div>
+    <!-- Kill Cam Replay Overlay -->
+    <div id="killcam-overlay" class="hidden" style="position:fixed; inset:0; pointer-events:none; z-index:9; box-shadow: inset 0 0 95px rgba(255, 70, 85, 0.55);">
+        <div style="position:absolute; top:74px; left:50%; transform:translateX(-50%); background:rgba(15,25,35,0.94); border-top:2px solid #ff4655; border-bottom:2px solid #ff4655; padding:10px 34px; text-align:center; min-width:340px;">
+            <div style="color:#ff4655; font-size:0.72rem; font-weight:900; letter-spacing:3px;">KILLCAM REPLAY // 0.85X</div>
+            <div style="font-size:1.25rem; font-weight:bold; letter-spacing:2px; margin:2px 0;">ELIMINATED BY <span id="kc-killer-name" class="accent">BOT</span></div>
+            <div style="display:flex; justify-content:center; gap:16px; font-size:0.78rem; color:#b8c2cc; border-top:1px solid #364554; padding-top:6px; margin-top:4px;">
+                <span>WEAPON: <b id="kc-weapon" style="color:#ece8e1;">VANDAL</b></span>
+                <span>HITS: <b id="kc-hits" style="color:#ff4655;">1 HEAD • 2 BODY</b></span>
+                <span>KILLER HP: <b id="kc-hp" style="color:#00ffcc;">100</b></span>
+            </div>
+        </div>
+        <div style="position:absolute; bottom:118px; left:50%; transform:translateX(-50%); background:rgba(15,25,35,0.88); padding:6px 18px; font-size:0.78rem; letter-spacing:1.5px; border-bottom:2px solid #00ffcc;">
+            PRESS <b style="color:#00ffcc;">[SPACE]</b> TO SKIP TO SPECTATOR CAM
+        </div>
+    </div>
+    <!-- Spectator Banner -->
+    <div id="spectator-banner" class="hidden" style="position:fixed; bottom:115px; left:50%; transform:translateX(-50%); background:rgba(15,25,35,0.92); border-bottom:3px solid #00ffcc; padding:8px 26px; font-weight:bold; letter-spacing:2px; z-index:6;">
+        SPECTATING: <span id="spec-target-name" class="accent">ALLY</span> &nbsp;|&nbsp; <b>[LMB]</b> NEXT ALLY &nbsp;|&nbsp; <b>[SPACE]</b> FREE-CAM FLY
+    </div>
+
+    <!-- Live Team Chat Box -->
+    <div id="chat-wrap" style="position:fixed; left:25px; bottom:135px; width:310px; z-index:9; pointer-events:none;">
+        <div id="chat-log" style="max-height:110px; overflow:hidden; display:flex; flex-direction:column; gap:3px; font-size:0.78rem; text-shadow:0 1px 3px #000;"></div>
+        <input type="text" id="chat-input" class="hidden" placeholder="Press Enter to send to team..." style="width:100%; margin-top:5px; padding:6px 10px; background:rgba(15,25,35,0.92); color:#ece8e1; border:1px solid #00ffcc; pointer-events:auto;">
+    </div>
+
+    <!-- Kill Emblem Diamond -->
+    <div id="kill-banner" class="hidden">
+        <div id="kill-wings" class="kill-wings"></div>
+        <div id="ace-crown" class="ace-crown hidden">♛</div>
+        <div class="kill-diamond"><span id="kill-roman" style="transform:rotate(-45deg); font-weight:900; font-size:1.1rem;">I</span></div>
+        <div id="kill-text">1 KILL</div>
+    </div>
+    <!-- Bottom Tactical HUD -->
+    <div id="bottom-hud">
+        <div class="hud-left">
+            <div class="hp-group"><span class="label">HP</span><span id="hud-hp">100</span></div>
+            <div class="shield-group"><span class="label">SHIELD</span><span id="hud-shield">0</span></div>
+        </div>
+        <div class="hud-center">
+            <div class="ability-slots">
+                <div id="slot-c" class="ab-box ready"><span>[C] <b id="c-pips" style="letter-spacing:2px;">■</b></span><small id="c-name">CLOUDBURST</small></div>
+                <div id="slot-q" class="ab-box ready"><span>[Q] <b id="q-pips" style="letter-spacing:2px;">■</b></span><small id="q-name">UPDRAFT</small></div>
+                <div id="slot-e" class="ab-box ready"><span>[E] <b id="e-cd">READY</b></span><small id="e-name">TAILWIND</small></div>
+                <div id="slot-x" class="ab-box ult"><span>[X] <b id="ult-pts">0/6</b></span><small id="x-name">BLADE STORM</small></div>
+            </div>
+            <div class="controls-bar"> PRI &nbsp;|&nbsp; SEC &nbsp;|&nbsp; KNIFE &nbsp;|&nbsp; SPIKE &nbsp;|&nbsp; [B] BUY &nbsp;|&nbsp; [P] SETTINGS &nbsp;|&nbsp; [T] SPRAY</div>
+        </div>
+        <div class="hud-right">
+            <div id="hud-gun">CLASSIC</div>
+            <div class="ammo-group"><span id="hud-ammo">12</span><span class="slash">/</span><span id="hud-mag">12</span></div>
+        </div>
+    </div>
+    <!-- STAGE 1: MAIN MENU & RANKED LOBBY -->
+    <div id="main-menu" class="overlay">
+        <div class="logo-sub">RIOT-STYLE TACTICAL NETWORK // 128-TICK SIM</div>
+        <h1>PROTOCOL // VALOR</h1>
+
+        <div style="background:#1b2733; border:1px solid #364554; border-left:4px solid #00ffcc; padding:10px 22px; margin-bottom:14px; display:flex; align-items:center; gap:18px;">
+            <div id="rank-emblem" style="width:42px; height:42px; background:#0f1923; border:2px solid #facc15; transform:rotate(45deg); display:flex; align-items:center; justify-content:center;">
+                <span id="rank-short" style="transform:rotate(-45deg); font-weight:900; font-size:0.78rem; color:#facc15;">UNR</span>
+            </div>
+            <div style="text-align:left; min-width:210px;">
+                <div style="font-weight:900; font-size:1.05rem; letter-spacing:1.5px;" id="player-rank-title">UNRANKED (0/5 PLACEMENTS)</div>
+                <div style="width:100%; height:6px; background:#0f1923; margin:5px 0;"><div id="rr-bar-fill" style="width:0%; height:100%; background:#00ffcc; transition:width 0.3s;"></div></div>
+                <div style="font-size:0.74rem; color:#8b978f;" id="player-rr-val">COMPLETE 5 MATCHES TO CALIBRATE</div>
+            </div>
+            <button id="open-career-btn" class="pill" style="border-color:#00ffcc; color:#00ffcc;">CAREER HISTORY</button>
+        </div>
+        <div class="selector-bar" style="flex-wrap:wrap; max-width:960px; justify-content:center;">
+            <div><span class="mini-label">GAME MODE</span>
+                <div class="pill-group" id="mode-select">
+                    <button class="pill active" data-mode="UNRATED">UNRATED</button>
+                    <button class="pill" data-mode="COMPETITIVE">COMPETITIVE</button>
+                    <button class="pill" data-mode="DEATHMATCH">DEATHMATCH</button>
+                    <button class="pill" data-mode="RANGE">THE RANGE</button>
+                    <button class="pill" data-mode="CUSTOM">CUSTOM (CHEATS ON)</button>
+                </div>
+            </div>
+            <div><span class="mini-label">SERVER SHARD</span>
+                <div class="pill-group" id="server-select">
+                    <button class="pill active" data-server="NA-EAST">US-EAST (19ms)</button>
+                    <button class="pill" data-server="NA-WEST">US-WEST (34ms)</button>
+                    <button class="pill" data-server="EU-FRANKFURT">EU-CENTRAL (28ms)</button>
+                    <button class="pill" data-server="AP-TOKYO">AP-EAST (42ms)</button>
+                </div>
+            </div>
+            <div><span class="mini-label">MAP</span>
+                <div class="pill-group" id="map-select">
+                    <button class="pill active" data-map="ASCENT">ASCENT</button>
+                    <button class="pill" data-map="BIND">BIND</button>
+                    <button class="pill" data-map="HAVEN">HAVEN</button>
+                    <button class="pill" data-map="ICEBOX">ICEBOX</button>
+                    <button class="pill" data-map="LOTUS">LOTUS</button>
+                    <button class="pill" data-map="SUNSET">SUNSET</button>
+                </div>
+            </div>
+            <div><span class="mini-label">WEAPON SKIN</span>
+                <div class="pill-group" id="skin-select">
+                    <button class="pill active" data-skin="STANDARD">STANDARD</button>
+                    <button class="pill" data-skin="PRIME">PRIME</button>
+                    <button class="pill" data-skin="REAVER">REAVER</button>
+                    <button class="pill" data-skin="GLITCHPOP">GLITCHPOP</button>
+                </div>
+            </div>
+            <div><span class="mini-label">PLAYER TITLE</span>
+                <div class="pill-group" id="title-select">
+                    <button class="pill active" data-title="VANGUARD">VANGUARD</button>
+                    <button class="pill" data-title="CLUTCH KING">CLUTCH KING</button>
+                    <button class="pill" data-title="SHARPSHOOTER">SHARPSHOOTER</button>
+                </div>
+            </div>
+        </div>
+        <div style="margin: 15px 0; text-align:center;">
+            <button id="find-match-btn" class="primary-btn" style="font-size:1.3rem; padding:18px 56px;">START QUEUE</button>
+            <div id="queue-timer-box" class="hidden" style="margin-top:14px;">
+                <div style="color:#00ffcc; font-weight:bold; letter-spacing:3px; font-size:0.85rem;">SEARCHING FOR MATCH // <span id="active-shard-label">NA-EAST</span></div>
+                <div id="queue-clock" style="font-size:2rem; font-weight:900; color:#ece8e1; margin:4px 0;">00:00</div>
+                <button id="cancel-queue-btn" class="pill" style="border-color:#ff4655; color:#ff4655;">CANCEL QUEUE</button>
+            </div>
+        </div>
+    </div>
+    <div id="agent-select-screen" class="overlay hidden" style="background: rgba(15, 25, 35, 0.84);">
+        <div style="position:fixed; top:20px; left:25px; text-align:left;">
+            <div style="color:#00ffcc; font-size:0.75rem; letter-spacing:2px; font-weight:bold;" id="pregame-map-info">ASCENT // UNRATED</div>
+            <div style="font-size:2.4rem; font-weight:900; color:#ece8e1;" id="pregame-timer">45</div>
+        </div>
+        <div id="pregame-roster" style="position:fixed; left:25px; top:110px; width:240px; display:flex; flex-direction:column; gap:8px;"></div>
+        <div id="lock-in-cutin" class="hidden" style="position:fixed; top:38%; left:50%; transform:translate(-50%,-50%); background:linear-gradient(90deg, transparent, rgba(255,70,85,0.92) 25%, rgba(255,70,85,0.92) 75%, transparent); padding:18px 85px; text-align:center; z-index:22; pointer-events:none;">
+            <div id="cutin-agent" style="font-size:2.6rem; font-weight:900; letter-spacing:6px; color:#fff;">JETT</div>
+            <div id="cutin-quote" style="font-size:0.95rem; font-style:italic; color:#ece8e1; margin-top:4px;">"Watch this!"</div>
+        </div>
+        <div id="pregame-bio" style="position:fixed; right:30px; top:110px; width:270px; background:rgba(15,25,35,0.9); border-left:3px solid #ff4655; padding:16px; text-align:left;">
+            <div id="bio-role" style="color:#00ffcc; font-size:0.75rem; letter-spacing:2px; font-weight:bold;">DUELIST</div>
+            <h2 id="bio-name" style="font-size:2rem; margin:4px 0 10px;">JETT</h2>
+            <p id="bio-desc" style="font-size:0.8rem; color:#b8c2cc; line-height:1.45;"></p>
+        </div>
+        <div style="position:fixed; bottom:25px; display:flex; flex-direction:column; align-items:center; gap:12px;">
+            <div class="card-row" id="agent-select" style="margin:0;">
+                <div class="card selected" data-agent="JETT"><h3>JETT</h3><div class="role">DUELIST</div></div>
+                <div class="card" data-agent="PHOENIX"><h3>PHOENIX</h3><div class="role">DUELIST</div></div>
+                <div class="card" data-agent="REYNA"><h3>REYNA</h3><div class="role">DUELIST</div></div>
+                <div class="card" data-agent="OMEN"><h3>OMEN</h3><div class="role">CONTROLLER</div></div>
+                <div class="card" data-agent="SAGE"><h3>SAGE</h3><div class="role">SENTINEL</div></div>
+                <div class="card" data-agent="SOVA"><h3>SOVA</h3><div class="role">INITIATOR</div></div>
+            </div>
+            <button id="lock-in-btn" class="primary-btn" style="padding:14px 64px; font-size:1.15rem;">LOCK IN</button>
+        </div>
+    </div>
+
+    <div id="loading-screen" class="overlay hidden" style="background: linear-gradient(135deg, #0f1923 0%, #1f2d3b 50%, #2b141c 100%); z-index:25;">
+        <div class="logo-sub" id="load-mode-label">UNRATED // 5V5 TACTICAL</div>
+        <h1 id="load-map-title" style="font-size:4.2rem; margin-bottom:25px;">ASCENT</h1>
+        <div style="display:flex; align-items:center; gap:35px;">
+            <div id="load-atk-roster" style="display:flex; flex-direction:column; gap:8px; width:210px;"></div>
+            <div style="font-size:2.4rem; font-weight:900; color:#ff4655; letter-spacing:4px;">VS</div>
+            <div id="load-def-roster" style="display:flex; flex-direction:column; gap:8px; width:210px;"></div>
+        </div>
+        <p class="status-text" style="margin-top:25px;">INITIALIZING SERVER INSTANCE...</p>
+    </div>
+    <div id="buy-menu" class="overlay hidden" style="background: rgba(12, 20, 28, 0.94);">
+        <div class="val-buy-container">
+            <div class="val-buy-topbar">
+                <div class="val-cred-box"><span class="val-label">CURRENT CREDITS</span><span class="val-cred-num">¤ <span id="credits-display">800</span></span></div>
+                <div class="val-phase-center"><span id="buy-state-badge" class="val-buy-badge">PISTOL ROUND</span><span class="val-next-min">MIN NEXT ROUND: <b>¤ <span id="next-min">2,700</span></b></span></div>
+                <div class="val-hint-box"><span><b>[LMB]</b> BUY</span><span><b>[RMB]</b> SELL / REQUEST</span><span><b>[B]</b> CLOSE</span></div>
+            </div>
+            <div class="val-armory-grid">
+                <div class="val-col val-team-col"><div class="val-col-title">TEAM LOADOUTS</div><div id="team-econ-list" class="val-team-list"></div><button id="req-weapon-btn" class="val-req-btn">HOVER GUN + [RMB] TO REQUEST</button></div>
+                <div class="val-col"><div class="val-col-title">SIDEARMS</div>
+                    <div class="val-card buy-item" data-gun="CLASSIC" data-cost="0"><div class="val-card-top"><span>CLASSIC</span><span class="val-price">FREE</span></div><div class="val-gun-sil">⌐╦═─</div></div>
+                    <div class="val-card buy-item" data-gun="SHERIFF" data-cost="800"><div class="val-card-top"><span>SHERIFF</span><span class="val-price">¤ 800</span></div><div class="val-gun-sil">⌐╦══─</div></div>
+                </div>
+                <div class="val-col"><div class="val-col-title">SMGS</div>
+                    <div class="val-card buy-item" data-gun="STINGER" data-cost="1100"><div class="val-card-top"><span>STINGER</span><span class="val-price">¤ 1,100</span></div><div class="val-gun-sil">▄︻デ══━一</div></div>
+                    <div class="val-card buy-item" data-gun="SPECTRE" data-cost="1600"><div class="val-card-top"><span>SPECTRE</span><span class="val-price">¤ 1,600</span></div><div class="val-gun-sil">▄︻デ══━一═</div></div>
+                </div>
+                <div class="val-col val-wide-col"><div class="val-col-title">RIFLES & SNIPER</div>
+                    <div class="val-subgrid">
+                        <div class="val-card buy-item" data-gun="BULLDOG" data-cost="2050"><div class="val-card-top"><span>BULLDOG</span><span class="val-price">¤ 2,050</span></div><div class="val-gun-sil">▄︻テ══━一</div></div>
+                        <div class="val-card buy-item" data-gun="MARSHAL" data-cost="950"><div class="val-card-top"><span>MARSHAL</span><span class="val-price">¤ 950</span></div><div class="val-gun-sil">▄︻̷̿┻̿═━一</div></div>
+                        <div class="val-card buy-item" data-gun="GUARDIAN" data-cost="2250"><div class="val-card-top"><span>GUARDIAN</span><span class="val-price">¤ 2,250</span></div><div class="val-gun-sil">▄︻テ══━一─</div></div>
+                        <div class="val-card buy-item" data-gun="OPERATOR" data-cost="4700"><div class="val-card-top"><span>OPERATOR</span><span class="val-price">¤ 4,700</span></div><div class="val-gun-sil">▄︻̷̿┻̿══━一</div></div>
+                        <div class="val-card buy-item" data-gun="PHANTOM" data-cost="2900"><div class="val-card-top"><span>PHANTOM</span><span class="val-price">¤ 2,900</span></div><div class="val-gun-sil">▄︻デ══━一═</div></div>
+                        <div class="val-card buy-item" data-gun="VANDAL" data-cost="2900"><div class="val-card-top"><span>VANDAL</span><span class="val-price">¤ 2,900</span></div><div class="val-gun-sil">▄︻テ══━一</div></div>
+                    </div>
+                </div>
+                <div class="val-col"><div class="val-col-title">ARMOR & ABILITIES</div>
+                    <div class="val-card buy-item" data-armor="LIGHT" data-cost="400"><div class="val-card-top"><span>LIGHT SHIELDS</span><span class="val-price">¤ 400</span></div><div class="val-armor-sub">+25 ABSORPTION</div></div>
+                    <div class="val-card buy-item" data-armor="HEAVY" data-cost="1000"><div class="val-card-top"><span>HEAVY SHIELDS</span><span class="val-price">¤ 1,000</span></div><div class="val-armor-sub">+50 ABSORPTION</div></div>
+                    <div class="val-card buy-item" data-ability="C_CHARGE" data-cost="150"><div class="val-card-top"><span>[C] CHARGE</span><span class="val-price">¤ 150</span></div><div class="val-armor-sub" id="buy-c-charges">CHARGES: 1 / 2</div></div>
+                    <div class="val-card buy-item" data-ability="Q_CHARGE" data-cost="200"><div class="val-card-top"><span>[Q] CHARGE</span><span class="val-price">¤ 200</span></div><div class="val-armor-sub" id="buy-q-charges">CHARGES: 1 / 2</div></div>
+                    <div id="val-weapon-inspector" class="val-inspector">
+                        <div id="insp-name" class="insp-title">VANDAL</div>
+                        <div id="insp-type" class="insp-sub">AUTOMATIC // MED PENETRATION</div>
+                        <div class="insp-table">
+                            <div><span>HEAD</span><b id="insp-head" style="color:#ff4655;">160</b></div>
+                            <div><span>BODY</span><b id="insp-body">40</b></div>
+                            <div><span>MAG</span><b id="insp-mag">25</b></div>
+                            <div><span>RATE</span><b id="insp-rate">9.1 RDS/S</b></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="settings-menu" class="overlay hidden" style="overflow-y:auto; padding:24px;">
+        <h2>SETTINGS // AIM, GRAPHICS, RAY TRACING & BINDS</h2>
+        <div style="display:flex; gap:14px; flex-wrap:wrap; justify-content:center; max-width:1100px;">
+            <div class="settings-box">
+                <h4 style="color:#00ffcc;">CROSSHAIR & PRO PRESETS</h4>
+                <label>COLOR: <select id="ch-color"><option value="#00ffcc">Cyan</option><option value="#22c55e">Green</option><option value="#ffffff">White</option><option value="#ff4655">Red</option><option value="#facc15">Yellow</option></select></label>
+                <label>LENGTH: <input type="range" id="ch-len" min="2" max="18" value="8"></label>
+                <label>THICKNESS: <input type="range" id="ch-thick" min="1" max="5" value="2"></label>
+                <label>CENTER DOT: <input type="checkbox" id="ch-dot"></label>
+                <label>MOVE ERROR: <input type="checkbox" id="ch-err" checked></label>
+                <div style="display:flex; gap:4px;"><input type="text" id="ch-code-input" value="0;P;c;#00ffcc;l;8;t;2;d;0" style="flex:1; background:#0f1923; color:#00ffcc; border:1px solid #364554; padding:4px; font-size:0.72rem;"><button id="ch-apply-code" class="pill">IMPORT</button></div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                    <button class="pill pro-ch-btn" data-code="0;P;c;#00ffcc;l;6;t;2;d;0">TENZ</button>
+                    <button class="pill pro-ch-btn" data-code="0;P;c;#ffffff;l;4;t;2;d;1">DEMON1</button>
+                    <button class="pill pro-ch-btn" data-code="0;P;c;#22c55e;l;7;t;1;d;0">ASPAS</button>
+                    <button class="pill pro-ch-btn" data-code="0;P;c;#ff4655;l;5;t;2;d;0">YAY</button>
+                </div>
+            </div>
+            <div class="settings-box">
+                <h4 style="color:#00ffcc;">MOUSE, RAY TRACING & GRAPHICS</h4>
+                <label>SENS: <span id="sens-val">0.35</span><input type="range" id="mouse-sens" min="0.05" max="1.5" step="0.01" value="0.35"></label>
+                <label>ADS MULT: <span id="ads-sens-val">0.80</span><input type="range" id="ads-sens" min="0.2" max="1.5" step="0.05" value="0.80"></label>
+                <label>RAW INPUT: <input type="checkbox" id="raw-input-toggle" checked></label>
+                <label>INVERT Y: <input type="checkbox" id="invert-y-toggle"></label>
+                <label>RAY TRACING: <select id="rt-quality"><option value="OFF">OFF (TOON)</option><option value="LOW">LOW (1K)</option><option value="MEDIUM">MEDIUM (2K)</option><option value="HIGH">HIGH (4K)</option></select></label>
+                <label>BLOOM GLOW: <input type="checkbox" id="bloom-toggle"></label>
+                <label>TRACERS: <input type="checkbox" id="tracer-toggle" checked></label>
+                <label>RES SCALE: <select id="res-scale"><option value="1.0">100% NATIVE</option><option value="0.85">85% PERF</option></select></label>
+            </div>
+            <div class="settings-box" style="width:340px;">
+                <h4 style="color:#00ffcc;">KEYBINDS & PRACTICE CHEATS</h4>
+                <div id="keybind-list" style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:0.74rem;"></div>
+                <button id="reset-binds-btn" class="pill" style="border-color:#ff4655; color:#ff4655;">RESET BINDS</button>
+                <div id="cheats-panel" style="border-top:1px solid #364554; padding-top:8px; display:flex; flex-direction:column; gap:6px;">
+                    <div style="display:flex; justify-content:space-between;"><b style="color:#facc15; font-size:0.75rem;">PRACTICE CHEATS</b><span id="cheat-lock-badge" style="font-size:0.65rem; color:#ff4655;">LOCKED</span></div>
+                    <label>INF CREDITS: <input type="checkbox" id="cheat-inf-creds" class="cheat-input" disabled></label>
+                    <label>INF ABILITIES: <input type="checkbox" id="cheat-inf-ab" class="cheat-input" disabled></label>
+                    <label>GHOST FLY [V]: <input type="checkbox" id="cheat-ghost" class="cheat-input" disabled></label>
+                    <button id="cheat-restart-round" class="pill cheat-input" disabled>RESTART ROUND</button>
+                </div>
+            </div>
+        </div>
+        <button id="close-settings-btn" class="primary-btn" style="margin-top:14px;">SAVE & RESUME [P]</button>
+    </div>
+    <div id="comms-wheel" class="overlay hidden" style="background: rgba(15, 25, 35, 0.72);">
+        <h3 style="letter-spacing:3px; color:#00ffcc; margin-bottom:15px;">TACTICAL RADIO COMMS [,]</h3>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; max-width:520px; justify-content:center;">
+            <button class="pill comm-opt" data-msg="Rotating to A Site!">1. ROTATE A</button>
+            <button class="pill comm-opt" data-msg="Rotating to B Site!">2. ROTATE B</button>
+            <button class="pill comm-opt" data-msg="Need healing!">3. NEED HEALING</button>
+            <button class="pill comm-opt" data-msg="Save credits this round!">4. ECO / SAVE</button>
+            <button class="pill comm-opt" data-msg="My Ultimate is ready!">5. ULT READY</button>
+        </div>
+    </div>
+
+    <div id="scoreboard" class="overlay hidden"><h2>MATCH SCOREBOARD</h2><table id="sb-table"><thead><tr><th>AGENT</th><th>TEAM</th><th>K / D / A</th><th>CREDITS</th><th>PING</th></tr></thead><tbody id="sb-body"></tbody></table></div>
+    <div id="combat-report" class="hidden"><h4>COMBAT REPORT [N]</h4><div id="cr-list"></div></div>
+    <div id="career-modal" class="overlay hidden" style="z-index:26;">
+        <h2 style="letter-spacing:3px; margin-bottom:14px;">COMPETITIVE CAREER // MATCH HISTORY</h2>
+        <table id="sb-table" style="margin-bottom:18px;"><thead><tr><th>MODE</th><th>MAP</th><th>AGENT</th><th>SCORE</th><th>K / D</th><th>RR DELTA</th></tr></thead><tbody id="career-body"></tbody></table>
+        <button id="close-career-btn" class="primary-btn">CLOSE CAREER</button>
+    </div>
+
+    <div id="match-end-screen" class="overlay hidden">
+        <div class="logo-sub" id="match-mvp-label">★ MATCH MVP // JETT</div>
+        <h1 id="match-result-title" style="font-size:4.2rem; margin-bottom:6px;">VICTORY</h1>
+        <div id="rr-change-banner" style="font-size:1.2rem; font-weight:900; color:#00ffcc; letter-spacing:2px; margin-bottom:18px;">+22 RR</div>
+        <table id="sb-table" style="margin-bottom:22px;"><thead><tr><th>PLAYER</th><th>ACS</th><th>K / D / A</th><th>HS %</th><th>FIRST BLOODS</th></tr></thead><tbody id="post-match-body"></tbody></table>
+        <button onclick="location.reload()" class="primary-btn">RETURN TO LOBBY</button>
+    </div>
+    <script type="importmap">
+    { "imports": { "three": "https://unpkg.com", "three/addons/": "https://unpkg.com" } }
+    </script>
+    <script type="module" src="./game.js"></script>
+</body>
+</html>
